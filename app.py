@@ -931,31 +931,7 @@ def generar():
     return parte_html
 
 
-@app.route('/descargar-pdf', methods=['POST'])
-def descargar_pdf():
-    """Endpoint para descargar el parte diario como PDF"""
-    datos = request.form
 
-    # Generar PDF
-    pdf_content = generar_pdf(datos)
-
-    # Crear respuesta con el PDF
-    response = make_response(pdf_content)
-    paciente_nombre = datos.get('paciente', 'parte_diario').replace(' ', '_')
-    fecha_str = datos.get('fecha', datetime.now().strftime('%Y-%m-%d'))
-
-    try:
-        fecha = datetime.strptime(fecha_str, '%Y-%m-%d')
-        fecha_nombre = fecha.strftime('%Y%m%d')
-    except:
-        fecha_nombre = datetime.now().strftime('%Y%m%d')
-
-    filename = f"parte_diario_{paciente_nombre}_{fecha_nombre}.pdf"
-
-    response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
-
-    return response
 
 
 if __name__ == '__main__':
