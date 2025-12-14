@@ -598,11 +598,40 @@ def generar_pdf(datos):
 
     return pdf
 
+def subir_a_drive(pdf_bytes, nombre_archivo):
+    SCOPES = ['https://www.googleapis.com/auth/drive.file']
+
+    creds_info = json.loads(os.environ['GOOGLE_CREDENTIALS'])
+    credentials = service_account.Credentials.from_service_account_info(
+        creds_info,
+        scopes=SCOPES
+    )
+
+    service = build('drive', 'v3', credentials=credentials)
+
+    file_metadata = {
+        'name': nombre_archivo,
+        'parents': ['1AFEeTIMiGwCr2cgEzBe-lJ9XE9YeeZ86']
+    }
+
+    media = MediaIoBaseUpload(
+        BytesIO(pdf_bytes),
+        mimetype='application/pdf'
+    )
+
+    service.files().create(
+        body=file_metadata,
+        media_body=media,
+        fields='id'
+    ).execute()
+
+
 
 @app.route('/')
 def index():
     fecha_hoy = datetime.now().strftime('%Y-%m-%d')
     return render_template_string(HTML_TEMPLATE, fecha_hoy=fecha_hoy)
+
 
 
 @app.route('/generar', methods=['POST'])
@@ -612,7 +641,13 @@ def generar():
     # Generar PDF
     pdf_content = generar_pdf(datos)
 
-    # 👉 Acá luego se envía por mail o Google Drive
+    paciente = datos.get('paciente', 'paciente').replace(' ', '_')
+    fecha = datos.get('fecha', datetime.now().strftime('%Y-%m-%d'))
+
+    nombre_pdf = f"parte_diario_{paciente}_{fecha}.pdf"
+
+    # 🔥 Subir automáticamente a Google Drive
+    subir_a_drive(pdf_content, nombre_pdf)
 
     return '''
     <!DOCTYPE html>
@@ -644,11 +679,12 @@ def generar():
     <body>
         <div class="box">
             <h1>✅ Parte diario enviado</h1>
-            <p>El registro fue generado y enviado correctamente.</p>
+            <p>El registro fue guardado correctamente.</p>
         </div>
     </body>
     </html>
     '''
+
 
 
 
