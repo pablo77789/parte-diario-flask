@@ -1,7 +1,9 @@
-import json
-from google.oauth2 import service_account
+from google_auth_oauthlib.flow import Flow
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
+
+import json
 
 from flask import Flask, request, render_template_string, make_response
 from datetime import datetime
@@ -598,20 +600,31 @@ def generar_pdf(datos):
     return pdf
 
 
+
 def subir_a_drive(pdf_bytes, nombre_archivo):
     SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
-    creds_info = json.loads(os.environ['GOOGLE_CREDENTIALS'])
-    credentials = service_account.Credentials.from_service_account_info(
-        creds_info,
-        scopes=SCOPES
+    client_secret = json.loads(os.environ['GOOGLE_CLIENT_SECRET'])
+
+    flow = Flow.from_client_config(
+        client_secret,
+        scopes=SCOPES,
+        redirect_uri='https://parte-diario-flask.onrender.com/oauth2callback'
     )
 
-    service = build('drive', 'v3', credentials=credentials)
+    # ⚠️ Token guardado en Render (primera vez se genera)
+    if os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    else:
+        auth_url, _ = flow.authorization_url(prompt='consent')
+        print('Authorize this app:', auth_url)
+        raise Exception('OAuth authorization required')
+
+    service = build('drive', 'v3', credentials=creds)
 
     file_metadata = {
         'name': nombre_archivo,
-        'parents': ['1AFEeTIMiGwCr2cgEzBe-lJ9XE9YeeZ86']
+        'parents': ['1AFEeTIMiGwCr2cgEzBe-lJ9XE9YeeZ86']  # ID de carpeta
     }
 
     media = MediaIoBaseUpload(
@@ -624,8 +637,6 @@ def subir_a_drive(pdf_bytes, nombre_archivo):
         media_body=media,
         fields='id'
     ).execute()
-
-
 
 @app.route('/')
 def index():
