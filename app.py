@@ -3,7 +3,6 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
-
 from flask import Flask, request, render_template_string, make_response
 from datetime import datetime
 from reportlab.lib.pagesizes import letter, A4
@@ -597,6 +596,7 @@ def generar_pdf(datos):
     buffer.close()
 
     return pdf
+
 
 def subir_a_drive(pdf_bytes, nombre_archivo):
     SCOPES = ['https://www.googleapis.com/auth/drive.file']
