@@ -600,31 +600,20 @@ def generar_pdf(datos):
     return pdf
 
 
-
 def subir_a_drive(pdf_bytes, nombre_archivo):
     SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
-    client_secret = json.loads(os.environ['GOOGLE_CLIENT_SECRET'])
-
-    flow = Flow.from_client_config(
-        client_secret,
-        scopes=SCOPES,
-        redirect_uri='https://parte-diario-flask.onrender.com/oauth2callback'
+    creds_info = json.loads(os.environ['GOOGLE_CREDENTIALS'])
+    credentials = service_account.Credentials.from_service_account_info(
+        creds_info,
+        scopes=SCOPES
     )
 
-    # ⚠️ Token guardado en Render (primera vez se genera)
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-    else:
-        auth_url, _ = flow.authorization_url(prompt='consent')
-        print('Authorize this app:', auth_url)
-        raise Exception('OAuth authorization required')
-
-    service = build('drive', 'v3', credentials=creds)
+    service = build('drive', 'v3', credentials=credentials)
 
     file_metadata = {
         'name': nombre_archivo,
-        'parents': ['1AFEeTIMiGwCr2cgEzBe-lJ9XE9YeeZ86']  # ID de carpeta
+        'parents': ['1AFEeTIMiGwCr2cgEzBe-lJ9XE9YeeZ86']  # carpeta compartida
     }
 
     media = MediaIoBaseUpload(
@@ -637,6 +626,8 @@ def subir_a_drive(pdf_bytes, nombre_archivo):
         media_body=media,
         fields='id'
     ).execute()
+
+
 
 @app.route('/')
 def index():
