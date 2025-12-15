@@ -727,10 +727,29 @@ def authorize():
     return redirect(authorization_url)
 
 
+from flask import redirect
+
+@app.route("/login")
+def login():
+    flow = get_flow()
+    authorization_url, state = flow.authorization_url(
+        access_type='offline',
+        include_granted_scopes='true',
+        prompt='consent'
+    )
+    session['state'] = state
+    return redirect(authorization_url)
+
+
 @app.route('/oauth2callback')
 def oauth2callback():
+    state = session.get('state')
+
     flow = get_flow()
-    flow.fetch_token(authorization_response=request.url)
+    flow.fetch_token(
+        authorization_response=request.url,
+        state=state
+    )
 
     credentials = flow.credentials
 
@@ -747,7 +766,6 @@ def oauth2callback():
     <h1>✅ Autorización completada</h1>
     <p>Ya podés generar partes diarios.</p>
     """
-
 
 
 
