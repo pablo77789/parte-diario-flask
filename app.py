@@ -5,6 +5,10 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
+from flask import redirect, session, url_for
+from google.oauth2.credentials import Credentials
+import requests
+
 import json
 
 from flask import Flask, request, render_template_string, make_response
@@ -709,6 +713,40 @@ def generar():
     </html>
     '''
 
+
+
+@app.route('/authorize')
+def authorize():
+    flow = get_flow()
+    authorization_url, state = flow.authorization_url(
+        access_type='offline',
+        include_granted_scopes='true',
+        prompt='consent'
+    )
+    session['state'] = state
+    return redirect(authorization_url)
+
+
+@app.route('/oauth2callback')
+def oauth2callback():
+    flow = get_flow()
+    flow.fetch_token(authorization_response=request.url)
+
+    credentials = flow.credentials
+
+    session['credentials'] = {
+        'token': credentials.token,
+        'refresh_token': credentials.refresh_token,
+        'token_uri': credentials.token_uri,
+        'client_id': credentials.client_id,
+        'client_secret': credentials.client_secret,
+        'scopes': credentials.scopes
+    }
+
+    return """
+    <h1>✅ Autorización completada</h1>
+    <p>Ya podés generar partes diarios.</p>
+    """
 
 
 
