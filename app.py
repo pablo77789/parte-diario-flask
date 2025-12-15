@@ -1,5 +1,7 @@
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import Flow
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
@@ -18,6 +20,26 @@ from io import BytesIO
 import os
 
 app = Flask(__name__)
+
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "supersecret")
+
+SCOPES = ['https://www.googleapis.com/auth/drive.file']
+
+def get_flow():
+    return Flow.from_client_config(
+        {
+            "web": {
+                "client_id": os.environ['GOOGLE_CLIENT_ID'],
+                "client_secret": os.environ['GOOGLE_CLIENT_SECRET'],
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": [os.environ['GOOGLE_REDIRECT_URI']]
+            }
+        },
+        scopes=SCOPES,
+        redirect_uri=os.environ['GOOGLE_REDIRECT_URI']
+    )
+
 
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
