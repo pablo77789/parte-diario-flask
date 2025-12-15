@@ -1,16 +1,3 @@
-from google_auth_oauthlib.flow import Flow
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import Flow
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
-
-from flask import redirect, session, url_for
-from google.oauth2.credentials import Credentials
-import requests
-
-import json
-
 from flask import Flask, request, render_template_string, make_response
 from datetime import datetime
 from reportlab.lib.pagesizes import letter, A4
@@ -24,26 +11,6 @@ from io import BytesIO
 import os
 
 app = Flask(__name__)
-
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "supersecret")
-
-SCOPES = ['https://www.googleapis.com/auth/drive.file']
-
-def get_flow():
-    return Flow.from_client_config(
-        {
-            "web": {
-                "client_id": os.environ['GOOGLE_CLIENT_ID'],
-                "client_secret": os.environ['GOOGLE_CLIENT_SECRET'],
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": [os.environ['GOOGLE_REDIRECT_URI']]
-            }
-        },
-        scopes=SCOPES,
-        redirect_uri=os.environ['GOOGLE_REDIRECT_URI']
-    )
-
 
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
@@ -626,147 +593,369 @@ def generar_pdf(datos):
     return pdf
 
 
-def subir_a_drive(pdf_bytes, nombre_archivo):
-    SCOPES = ['https://www.googleapis.com/auth/drive.file']
-
-    creds_info = json.loads(os.environ['GOOGLE_CREDENTIALS'])
-    credentials = service_account.Credentials.from_service_account_info(
-        creds_info,
-        scopes=SCOPES
-    )
-
-    service = build('drive', 'v3', credentials=credentials)
-
-    file_metadata = {
-        'name': nombre_archivo,
-        'parents': ['1AFEeTIMiGwCr2cgEzBe-lJ9XE9YeeZ86']  # carpeta compartida
-    }
-
-    media = MediaIoBaseUpload(
-        BytesIO(pdf_bytes),
-        mimetype='application/pdf'
-    )
-
-    service.files().create(
-        body=file_metadata,
-        media_body=media,
-        fields='id'
-    ).execute()
-
-
-
 @app.route('/')
 def index():
     fecha_hoy = datetime.now().strftime('%Y-%m-%d')
     return render_template_string(HTML_TEMPLATE, fecha_hoy=fecha_hoy)
 
 
-
 @app.route('/generar', methods=['POST'])
 def generar():
     datos = request.form
 
-    # Generar PDF
-    pdf_content = generar_pdf(datos)
+    # Obtener fecha o usar la actual
+    fecha_str = datos.get('fecha', datetime.now().strftime('%Y-%m-%d'))
+    try:
+        fecha = datetime.strptime(fecha_str, '%Y-%m-%d')
+        fecha_formateada = fecha.strftime('%d/%m/%Y')
+    except:
+        fecha_formateada = datetime.now().strftime('%d/%m/%Y')
 
-    paciente = datos.get('paciente', 'paciente').replace(' ', '_')
-    fecha = datos.get('fecha', datetime.now().strftime('%Y-%m-%d'))
-
-    nombre_pdf = f"parte_diario_{paciente}_{fecha}.pdf"
-
-    # 🔥 Subir automáticamente a Google Drive
-    subir_a_drive(pdf_content, nombre_pdf)
-
-    return '''
+    # Crear parte diario con formato mejorado
+    parte_html = f'''
     <!DOCTYPE html>
     <html lang="es">
     <head>
         <meta charset="UTF-8">
-        <title>Parte enviado</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Parte Diario - {datos.get('paciente', 'Paciente')}</title>
         <style>
-            body {
-                font-family: Arial, sans-serif;
-                background: #f5f7fa;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                height: 100vh;
-            }
-            .box {
+            body {{
+                font-family: 'Arial', sans-serif;
+                line-height: 1.6;
+                color: #333;
+                max-width: 1000px;
+                margin: 0 auto;
+                padding: 20px;
+                background: #f5f5f5;
+            }}
+
+            .parte-wrapper {{
                 background: white;
                 padding: 40px;
-                border-radius: 12px;
+                border-radius: 15px;
                 box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            }}
+
+            .header {{
                 text-align: center;
-            }
-            h1 {
-                color: #2ecc71;
-            }
+                margin-bottom: 40px;
+                padding-bottom: 20px;
+                border-bottom: 3px solid #3498db;
+            }}
+
+            .header h1 {{
+                color: #2c3e50;
+                font-size: 28px;
+                margin-bottom: 10px;
+            }}
+
+            .header .subtitle {{
+                color: #7f8c8d;
+                font-size: 18px;
+            }}
+
+            .info-grid {{
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 20px;
+                margin-bottom: 30px;
+                padding: 20px;
+                background: #f8f9fa;
+                border-radius: 10px;
+            }}
+
+            .info-item {{
+                padding: 10px;
+            }}
+
+            .info-label {{
+                font-weight: bold;
+                color: #3498db;
+                font-size: 14px;
+                text-transform: uppercase;
+            }}
+
+            .info-value {{
+                color: #2c3e50;
+                font-size: 16px;
+                margin-top: 5px;
+            }}
+
+            .section {{
+                margin-bottom: 25px;
+                padding: 20px;
+                border-left: 4px solid #3498db;
+                background: #f8f9fa;
+                border-radius: 0 8px 8px 0;
+            }}
+
+            .section-title {{
+                color: #2c3e50;
+                font-size: 18px;
+                font-weight: bold;
+                margin-bottom: 15px;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }}
+
+            .section-content {{
+                color: #444;
+                white-space: pre-line;
+                line-height: 1.8;
+            }}
+
+            .signature {{
+                margin-top: 40px;
+                padding-top: 20px;
+                border-top: 2px solid #ddd;
+                text-align: right;
+            }}
+
+            .signature-name {{
+                font-weight: bold;
+                font-size: 16px;
+                color: #2c3e50;
+            }}
+
+            .signature-role {{
+                color: #7f8c8d;
+                font-size: 14px;
+            }}
+
+            .timestamp {{
+                text-align: center;
+                color: #95a5a6;
+                font-size: 14px;
+                margin-top: 30px;
+                padding-top: 20px;
+                border-top: 1px solid #eee;
+            }}
+
+            .status-badge {{
+                display: inline-block;
+                padding: 5px 15px;
+                border-radius: 20px;
+                font-size: 14px;
+                font-weight: bold;
+                margin-bottom: 10px;
+            }}
+
+            .status-good {{ background: #d4edda; color: #155724; }}
+            .status-regular {{ background: #fff3cd; color: #856404; }}
+            .status-bad {{ background: #f8d7da; color: #721c24; }}
+
+            .alert-box {{
+                background: #fff3cd;
+                border-left: 4px solid #ffc107;
+                padding: 15px;
+                margin: 15px 0;
+                border-radius: 0 5px 5px 0;
+            }}
+
+            .action-buttons {{
+                display: flex;
+                gap: 15px;
+                justify-content: center;
+                margin-top: 40px;
+                flex-wrap: wrap;
+            }}
+
+            .btn {{
+                padding: 12px 30px;
+                border-radius: 8px;
+                text-decoration: none;
+                font-weight: 500;
+                display: inline-flex;
+                align-items: center;
+                gap: 10px;
+                font-size: 16px;
+                border: none;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            }}
+
+            .btn:hover {{
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            }}
+
+            .btn-pdf {{
+                background: linear-gradient(45deg, #e74c3c, #c0392b);
+                color: white;
+            }}
+
+            .btn-print {{
+                background: linear-gradient(45deg, #3498db, #2980b9);
+                color: white;
+            }}
+
+            .btn-back {{
+                background: linear-gradient(45deg, #95a5a6, #7f8c8d);
+                color: white;
+            }}
+
+            @media print {{
+                body {{
+                    background: white;
+                    padding: 0;
+                }}
+
+                .parte-wrapper {{
+                    box-shadow: none;
+                    padding: 20px;
+                }}
+
+                .action-buttons {{
+                    display: none;
+                }}
+            }}
         </style>
     </head>
     <body>
-        <div class="box">
-            <h1>✅ Parte diario enviado</h1>
-            <p>El registro fue guardado correctamente.</p>
+        <div class="parte-wrapper">
+            <div class="header">
+                <h1>📋 PARTE DIARIO DE ATENCIÓN</h1>
+                <div class="subtitle">Registro completo de cuidados y observaciones</div>
+            </div>
+
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">Paciente</div>
+                    <div class="info-value">👤 {datos.get('paciente', 'No especificado')}</div>
+                </div>
+
+                <div class="info-item">
+                    <div class="info-label">Cuidadora Responsable</div>
+                    <div class="info-value">👩‍⚕️ {datos.get('cuidadora', 'No especificada')}</div>
+                </div>
+
+                <div class="info-item">
+                    <div class="info-label">Fecha</div>
+                    <div class="info-value">📅 {fecha_formateada}</div>
+                </div>
+
+                <div class="info-item">
+                    <div class="info-label">Estado General</div>
+                    <div class="status-badge status-{datos.get('estado_general', '').lower()}">
+                        {datos.get('estado_general', 'No evaluado')}
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">😊 ESTADO GENERAL - DETALLES</div>
+                <div class="section-content">{datos.get('estado_detalle', 'Sin observaciones')}</div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">💊 MEDICACIÓN</div>
+                <div class="section-content">{datos.get('medicacion', 'No se administró medicación')}</div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">🍽️ ALIMENTACIÓN</div>
+                <div class="section-content">{datos.get('alimentacion', 'No registrada')}</div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">💧 HIDRATACIÓN</div>
+                <div class="section-content">{datos.get('hidratacion', 'No registrada')}</div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">🚽 ELIMINACIÓN</div>
+                <div class="section-content">{datos.get('eliminacion', 'No registrada')}</div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">🛌 DESCANSO Y SUEÑO</div>
+                <div class="section-content">{datos.get('descanso', 'No registrado')}</div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">🚶‍♂️ MOVILIDAD Y EJERCICIO</div>
+                <div class="section-content">{datos.get('movilidad', 'No registrada')}</div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">🧼 HIGIENE Y CUIDADOS</div>
+                <div class="section-content">{datos.get('higiene', 'No registrada')}</div>
+            </div>
+
+            {f'<div class="alert-box"><strong>⚠️ SIGNOS DE ALERTA:</strong><br>{datos.get("signos_alerta", "")}</div>' if datos.get("signos_alerta") else ''}
+
+            <div class="section">
+                <div class="section-title">📝 OBSERVACIONES ADICIONALES</div>
+                <div class="section-content">{datos.get('observaciones', 'Ninguna observación adicional')}</div>
+            </div>
+
+            <div class="signature">
+                <div class="signature-name">{datos.get('cuidadora', 'Cuidador/a')}</div>
+                <div class="signature-role">Cuidadora Responsable</div>
+            </div>
+
+            <div class="timestamp">
+                Documento generado el {datetime.now().strftime('%d/%m/%Y a las %H:%M')}
+            </div>
+
+            <div class="action-buttons">
+                <form action="/descargar-pdf" method="post" style="display: inline;">
+                    <input type="hidden" name="paciente" value="{datos.get('paciente', '')}">
+                    <input type="hidden" name="cuidadora" value="{datos.get('cuidadora', '')}">
+                    <input type="hidden" name="fecha" value="{datos.get('fecha', '')}">
+                    <input type="hidden" name="estado_general" value="{datos.get('estado_general', '')}">
+                    <input type="hidden" name="estado_detalle" value="{datos.get('estado_detalle', '')}">
+                    <input type="hidden" name="medicacion" value="{datos.get('medicacion', '')}">
+                    <input type="hidden" name="alimentacion" value="{datos.get('alimentacion', '')}">
+                    <input type="hidden" name="hidratacion" value="{datos.get('hidratacion', '')}">
+                    <input type="hidden" name="eliminacion" value="{datos.get('eliminacion', '')}">
+                    <input type="hidden" name="descanso" value="{datos.get('descanso', '')}">
+                    <input type="hidden" name="movilidad" value="{datos.get('movilidad', '')}">
+                    <input type="hidden" name="higiene" value="{datos.get('higiene', '')}">
+                    <input type="hidden" name="observaciones" value="{datos.get('observaciones', '')}">
+                    <input type="hidden" name="signos_alerta" value="{datos.get('signos_alerta', '')}">
+                    <button type="submit" class="btn btn-pdf">📥 Descargar PDF</button>
+                </form>
+
+                <button onclick="window.print()" class="btn btn-print">🖨️ Imprimir</button>
+
+                <a href="/" class="btn btn-back">📝 Nuevo Parte</a>
+            </div>
         </div>
     </body>
     </html>
     '''
 
+    return parte_html
 
 
-@app.route('/authorize')
-def authorize():
-    flow = get_flow()
-    authorization_url, state = flow.authorization_url(
-        access_type='offline',
-        include_granted_scopes='true',
-        prompt='consent'
-    )
-    session['state'] = state
-    return redirect(authorization_url)
+@app.route('/descargar-pdf', methods=['POST'])
+def descargar_pdf():
+    """Endpoint para descargar el parte diario como PDF"""
+    datos = request.form
 
+    # Generar PDF
+    pdf_content = generar_pdf(datos)
 
-from flask import redirect
+    # Crear respuesta con el PDF
+    response = make_response(pdf_content)
+    paciente_nombre = datos.get('paciente', 'parte_diario').replace(' ', '_')
+    fecha_str = datos.get('fecha', datetime.now().strftime('%Y-%m-%d'))
 
-@app.route("/login")
-def login():
-    flow = get_flow()
-    authorization_url, state = flow.authorization_url(
-        access_type='offline',
-        include_granted_scopes='true',
-        prompt='consent'
-    )
-    session['state'] = state
-    return redirect(authorization_url)
+    try:
+        fecha = datetime.strptime(fecha_str, '%Y-%m-%d')
+        fecha_nombre = fecha.strftime('%Y%m%d')
+    except:
+        fecha_nombre = datetime.now().strftime('%Y%m%d')
 
+    filename = f"parte_diario_{paciente_nombre}_{fecha_nombre}.pdf"
 
-@app.route('/oauth2callback')
-def oauth2callback():
-    state = session.get('state')
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
 
-    flow = get_flow()
-    flow.fetch_token(
-        authorization_response=request.url,
-        state=state
-    )
-
-    credentials = flow.credentials
-
-    session['credentials'] = {
-        'token': credentials.token,
-        'refresh_token': credentials.refresh_token,
-        'token_uri': credentials.token_uri,
-        'client_id': credentials.client_id,
-        'client_secret': credentials.client_secret,
-        'scopes': credentials.scopes
-    }
-
-    return """
-    <h1>✅ Autorización completada</h1>
-    <p>Ya podés generar partes diarios.</p>
-    """
-
+    return response
 
 
 if __name__ == '__main__':
